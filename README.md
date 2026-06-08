@@ -180,6 +180,40 @@ config [`config/train/lewm_planning.yaml`](config/train/lewm_planning.yaml). Key
 each step — per-level token diversity (collapse check) and the mean correction magnitude /
 gate value of the top-down passes — via `encoder.diagnostics`.
 
+## 7. A third axis of scale
+
+A standard transformer scales along two axes: **width** (`embed_dim`, heads,
+`mlp_dim`) and **depth** (number of layers) — plus sequence length. Both grow the
+parameter count to make a *single, flat* pass over the tokens richer.
+
+This architecture adds a **third, orthogonal axis: the level of abstraction**. You can
+make the model reason harder without making its transformers wider or deeper, by scaling:
+
+- **The number of abstraction levels.** `[15, 5, 1]` is just the default pyramid; the
+  encoder and predictor are written generically over the level list, so you can deepen
+  the hierarchy (`[30, 15, 5, 1]`, …) to give the world state more rungs between raw
+  detail and the global gist.
+- **The reconciliation depth `K` (`num_cycles`).** Each cycle is another round of
+  bottom-up/top-down messages between levels. Raising `K` buys more *iterative reasoning*
+  over the **same** parameters — the gated updates are reused every cycle — so it is
+  closer to recurrent/adaptive compute than to adding layers. `K=0` is no recurrence,
+  `K=2` the default, and you can dial it up at inference for harder states.
+
+The practical upshot is that **compute and reasoning depth decouple from raw size**.
+Where a plain transformer can only "think more" by getting bigger (more params, more
+memory, retrained from scratch), here you can:
+
+- add a level, or turn up `K`, to spend more compute on reconciling the state, while the
+  backbone stays small (this fork runs ViT-tiny on a single GPU);
+- vary `K` *per inference* as an adaptive-compute knob — cheap states settle in one cycle,
+  hard ones get more — without touching the weights;
+- scale the three axes independently: width/depth for representational capacity, levels
+  for how much abstraction structure the state carries, `K` for how much iterative
+  reasoning happens over it.
+
+In short: a transformer scales **along and across** (depth and width); this planner adds
+scaling **up the abstraction hierarchy** as a separate dial.
+
 ---
 
 ## Setup & running
