@@ -12,6 +12,7 @@ from omegaconf import OmegaConf, open_dict
 
 from module import SIGReg
 from utils import get_column_normalizer, get_img_preprocessor, SaveCkptCallback
+from stable_pretraining._config import get_config as get_spt_config
 
 
 def lejepa_forward(self, batch, stage, cfg):
@@ -33,10 +34,35 @@ def lejepa_forward(self, batch, stage, cfg):
     ctx_act = act_emb[:, : ctx_len]
 
     tgt_emb = emb[:, n_preds:] # label
-    pred_emb = self.model.predict(ctx_emb, ctx_act) # pred
+
+    if hasattr(self.model, "predict_state") and all(k in output for k in ("z15", "z5", "z1")):
+        ctx_state = {
+            "z15": output["z15"][:, :ctx_len],
+            "z5": output["z5"][:, :ctx_len],
+            "z1": output["z1"][:, :ctx_len],
+        }
+        tgt_state = {
+            "z15": output["z15"][:, -n_preds:],
+            "z5": output["z5"][:, -n_preds:],
+            "z1": output["z1"][:, -n_preds:],
+        }
+        pred_state = self.model.predict_state(ctx_state, ctx_act)
+        pred_emb = pred_state["emb"]
+
+        output["pred_z15_loss"] = (pred_state["z15"] - tgt_state["z15"]).pow(2).mean()
+        output["pred_z5_loss"] = (pred_state["z5"] - tgt_state["z5"]).pow(2).mean()
+        output["pred_z1_loss"] = (pred_state["z1"] - tgt_state["z1"]).pow(2).mean()
+        output["pred_emb_loss"] = (pred_emb - tgt_emb[:, -n_preds:]).pow(2).mean()
+        output["pred_loss"] = (
+            output["pred_z15_loss"]
+            + 0.5 * output["pred_z5_loss"]
+            + 0.25 * output["pred_z1_loss"]
+        )
+    else:
+        pred_emb = self.model.predict(ctx_emb, ctx_act) # pred
+        output["pred_loss"] = (pred_emb - tgt_emb).pow(2).mean()
 
     # LeWM loss
-    output["pred_loss"] = (pred_emb - tgt_emb).pow(2).mean()
     output["sigreg_loss"]= self.sigreg(emb.transpose(0, 1))
     output["loss"] = output["pred_loss"] + lambd * output["sigreg_loss"]  
 
@@ -106,6 +132,10 @@ def run(cfg):
     ##########################
 
     run_id = cfg.get("subdir") or ""
+    log_root = Path(cfg.get("log_root", "logs/stable-pretraining")).resolve()
+    log_root.mkdir(parents=True, exist_ok=True)
+    get_spt_config().cache_dir = str(log_root)
+
     run_dir = Path(swm.data.utils.get_cache_dir(sub_folder='checkpoints'), run_id)
 
     logger = None

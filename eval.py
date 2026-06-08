@@ -9,6 +9,8 @@ import hydra
 import numpy as np
 import stable_pretraining as spt
 import torch
+
+torch.backends.cudnn.enabled = False  # cuDNN 9.5.1 SIGBUS on ViT conv on this H100
 from omegaconf import DictConfig, OmegaConf
 from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms

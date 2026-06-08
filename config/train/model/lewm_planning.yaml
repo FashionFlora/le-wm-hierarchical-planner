@@ -1,0 +1,41 @@
+_target_: jepa_planning.PlanningJEPA
+
+encoder:
+  _target_: stable_pretraining.backbone.utils.vit_hf
+  size: tiny
+  patch_size: 14
+  image_size: ${img_size}
+  pretrained: false
+  use_mask_token: false
+
+predictor:
+  _target_: module_planning.HierarchicalStatePredictor
+  num_frames: ${history_size}
+  input_dim: ${embed_dim}
+  hidden_dim: ${embed_dim}
+  output_dim: ${embed_dim}
+  depth: 6
+  heads: 16
+  mlp_dim: 2048
+  dim_head: 64
+  dropout: 0.1
+  emb_dropout: 0.0
+  z1_history: 8
+  z5_history: 4
+  z15_history: 2
+
+action_encoder:
+  _target_: module_planning.Embedder
+  input_dim: ???
+  emb_dim: ${embed_dim}
+
+state_encoder:
+  _target_: module_planning.RecursiveStateEncoder
+  dim: ${embed_dim}
+  context_dim: ${embed_dim}
+  level_tokens: [15, 5, 1]
+  num_cycles: 2
+  heads: 3
+  dim_head: 64
+  mlp_dim: 768
+  dropout: 0.1

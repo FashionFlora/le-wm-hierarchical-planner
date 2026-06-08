@@ -63,9 +63,19 @@ wandb:
     project: your_project
 ```
 
-To launch training:
+To launch the vanilla LeWM training run:
 ```bash
-python train.py data=pusht
+python train.py --config-name=lewm data=pusht
+```
+
+To launch the hierarchical recurrent planner variant:
+```bash
+python train.py --config-name=lewm_planning data=pusht
+```
+
+You can also switch only the model group from the default config:
+```bash
+python train.py model=lewm_planning output_model_name=lewm_planning data=pusht
 ```
 
 Checkpoints are saved to `$STABLEWM_HOME` upon completion.
